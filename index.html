@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F5F6F8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Packing">
+<title>Packing Lists</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F6F8;
+    --card:#FFFFFF;
+    --border:#E7E9EE;
+    --text:#171A21;
+    --text-dim:#767E8C;
+    --text-faint:#A2A9B4;
+    --danger:#EF4444;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    min-height:100dvh;
+    background:var(--bg);
+    font-family:'Inter', -apple-system, sans-serif;
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+    padding:32px 14px 60px;
+    padding-top:max(32px, env(safe-area-inset-top));
+    padding-bottom:max(60px, env(safe-area-inset-bottom) + 24px);
+    padding-left:max(14px, env(safe-area-inset-left));
+    padding-right:max(14px, env(safe-area-inset-right));
+  }
+  .app{
+    width:100%;
+    max-width:600px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 20px 45px -25px rgba(20,25,35,0.35);
+  }
+  .stripe{height:6px;transition:background .2s ease;}
+
+  header{
+    padding:20px 22px 16px;
+    border-bottom:1px solid var(--border);
+  }
+  .toprow{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:14px;
+  }
+  .eyebrow{
+    font-size:10.5px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    font-weight:600;
+  }
+  .list-name-row{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    margin-top:5px;
+  }
+  .dot{
+    width:11px;height:11px;
+    border-radius:50%;
+    flex-shrink:0;
+  }
+  .list-name{
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:-0.2px;
+  }
+  .overall{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:4px;
+  }
+  .overall b{color:var(--text);font-weight:700;}
+
+  .sync-note{
+    font-size:10.5px;
+    font-weight:600;
+    color:#22C55E;
+    opacity:0;
+    transition:opacity .3s ease;
+    align-self:center;
+    white-space:nowrap;
+  }
+  .sync-note.show{opacity:1;}
+  .list-picker{position:relative;flex-shrink:0;}
+  .list-picker button.trigger{
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    padding:8px 12px;
+    border-radius:9px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .list-picker button.trigger:hover{background:#EEF0F3;}
+  .list-panel{
+    display:none;
+    position:absolute;
+    right:0;
+    top:calc(100% + 8px);
+    width:270px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    box-shadow:0 20px 45px -15px rgba(20,25,35,0.35);
+    padding:8px;
+    z-index:30;
+  }
+  .list-panel.open{display:block;}
+  .list-row{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  .list-row:hover{background:var(--bg);}
+  .list-row.active{background:#F0F3FF;}
+  .list-row .name{flex:1;font-weight:500;}
+  .list-row .count{font-size:11px;color:var(--text-faint);}
+  .list-row .del{
+    border:none;background:none;color:var(--text-faint);
+    cursor:pointer;font-size:13px;padding:2px 4px;
+  }
+  .list-row .del:hover{color:var(--danger);}
+  .panel-actions{
+    display:flex;gap:6px;margin-top:6px;padding-top:8px;border-top:1px solid var(--border);
+  }
+  .panel-actions button{
+    flex:1;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;
+    padding:9px 4px;border:1px solid var(--border);background:var(--card);color:var(--text);
+    cursor:pointer;border-radius:8px;
+  }
+  .panel-actions button:hover{background:var(--bg);}
+
+  .toolbar{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+  }
+  .tool-btn{
+    font-family:'Inter', sans-serif;
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--text-dim);
+    background:var(--bg);
+    border:1px solid var(--border);
+    padding:7px 11px;
+    border-radius:8px;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .tool-btn:hover{background:#EEF0F3;color:var(--text);}
+  .sync-picker{position:relative;}
+  .sync-panel{
+    display:none;
+    position:absolute;
+    left:0;
+    top:calc(100% + 8px);
+    width:280px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    box-shadow:0 20px 45px -15px rgba(20,25,35,0.35);
+    padding:14px;
+    z-index:30;
+    font-size:12.5px;
+    color:var(--text-dim);
+    line-height:1.5;
+  }
+  .sync-panel.open{display:block;}
+  .sync-panel h4{margin:0 0 6px;font-size:12.5px;color:var(--text);font-weight:700;}
+  .sync-panel .code-box{
+    display:flex;align-items:center;gap:6px;margin:8px 0;
+  }
+  .sync-panel .code-box code{
+    flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    padding:7px 8px;font-size:11.5px;word-break:break-all;color:var(--text);
+  }
+  .sync-panel button{
+    font-family:'Inter', sans-serif;font-size:11.5px;font-weight:600;
+    padding:8px 10px;border-radius:8px;border:1px solid var(--border);
+    background:var(--card);color:var(--text);cursor:pointer;
+  }
+  .sync-panel button:hover{background:var(--bg);}
+  .sync-panel button.primary{background:#3B82F6;border-color:#3B82F6;color:#fff;}
+  .sync-panel button.primary:hover{background:#2f6fd6;}
+  .sync-panel input[type=text]{
+    width:100%;font-family:'Inter', sans-serif;font-size:12.5px;
+    padding:8px 9px;border:1px solid var(--border);border-radius:8px;margin:6px 0;
+    color:var(--text);
+  }
+  .sync-dot{
+    display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;
+  }
+
+  .composition{
+    display:flex;
+    gap:3px;
+    height:10px;
+    margin-top:16px;
+  }
+  .comp-seg{
+    border-radius:5px;
+    cursor:pointer;
+    min-width:6px;
+    transition:opacity .15s ease;
+    touch-action:manipulation;
+  }
+  .comp-seg:hover{opacity:0.75;}
+
+  .tabs{
+    display:flex;
+    flex-wrap:wrap;
+    gap:7px;
+    padding:16px 22px 0;
+  }
+  .tab{
+    font-family:'Inter', sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    padding:9px 13px;
+    border-radius:20px;
+    border:1.5px solid transparent;
+    cursor:pointer;
+    white-space:nowrap;
+    touch-action:manipulation;
+  }
+  .tab .n{font-weight:400;opacity:0.7;margin-left:2px;}
+  .tab.add{
+    background:transparent;
+    border:1.5px dashed var(--border);
+    color:var(--text-dim);
+  }
+  .tab.add:hover{border-color:var(--text-faint);}
+
+  .body{
+    padding:14px 22px 6px;
+    min-height:120px;
+  }
+  .item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 6px;
+    border-radius:10px;
+  }
+  .item:hover{background:var(--bg);}
+  .accent{
+    width:4px;
+    align-self:stretch;
+    border-radius:3px;
+    flex-shrink:0;
+  }
+  .check{
+    width:22px;height:22px;
+    border-radius:6px;
+    border:2px solid var(--border);
+    background:var(--card);
+    flex-shrink:0;
+    cursor:pointer;
+    position:relative;
+    touch-action:manipulation;
+  }
+  .check.done::after{
+    content:"";
+    position:absolute;
+    left:6px;top:2px;
+    width:5px;height:10px;
+    border:solid #fff;
+    border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+  }
+  .item-text{
+    flex:1;
+    font-size:13.5px;
+    cursor:text;
+    padding:3px 5px;
+    border-radius:5px;
+  }
+  .item.done .item-text{
+    text-decoration:line-through;
+    color:var(--text-faint);
+  }
+  .item-text input{
+    width:100%;
+    font-family:'Inter', sans-serif;
+    font-size:16px;
+    border:none;
+    background:var(--bg);
+    border-radius:5px;
+    padding:3px 5px;
+    outline:2px solid #C7CDD8;
+    color:var(--text);
+  }
+  .del-btn{
+    border:none;
+    background:none;
+    color:var(--text-faint);
+    font-size:16px;
+    cursor:pointer;
+    flex-shrink:0;
+    padding:8px 9px;
+    line-height:1;
+    border-radius:6px;
+    touch-action:manipulation;
+  }
+  .del-btn:hover{color:var(--danger);background:#FDEDED;}
+  .add-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:8px 0 4px;
+    border:1.5px dashed var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .add-row .plus{font-size:16px;font-weight:700;flex-shrink:0;}
+  .add-row input{
+    flex:1;
+    border:none;
+    background:transparent;
+    font-family:'Inter', sans-serif;
+    font-size:16px;
+    outline:none;
+    color:var(--text);
+  }
+  .empty{
+    text-align:center;
+    padding:26px 10px;
+    color:var(--text-faint);
+    font-size:12.5px;
+  }
+  footer{
+    padding:12px 22px 20px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .progress-label{
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--text-dim);
+    white-space:nowrap;
+  }
+  .progress-track{
+    flex:1;
+    height:7px;
+    background:var(--bg);
+    border-radius:5px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    border-radius:5px;
+    transition:width .25s ease, background .2s ease;
+  }
+  @media (max-width:420px){
+    .toprow{flex-direction:column;}
+    .list-picker{align-self:stretch;}
+    .list-picker button.trigger{width:100%;justify-content:space-between;}
+    .list-panel{right:0;left:0;width:auto;}
+    .sync-panel{left:0;right:0;width:auto;}
+  }
+  @media (max-width:480px){
+    body{
+      padding-left:0;
+      padding-right:0;
+      padding-top:0;
+      padding-bottom:0;
+      display:block;
+    }
+    .app{
+      max-width:none;
+      min-height:100vh;
+      min-height:100dvh;
+      border-radius:0;
+      border:none;
+      box-shadow:none;
+    }
+    header{
+      padding-top:max(20px, env(safe-area-inset-top) + 12px);
+      padding-left:max(18px, env(safe-area-inset-left) + 4px);
+      padding-right:max(18px, env(safe-area-inset-right) + 4px);
+    }
+    .tabs, .body{
+      padding-left:max(18px, env(safe-area-inset-left) + 4px);
+      padding-right:max(18px, env(safe-area-inset-right) + 4px);
+    }
+    footer{
+      padding-left:max(18px, env(safe-area-inset-left) + 4px);
+      padding-right:max(18px, env(safe-area-inset-right) + 4px);
+      padding-bottom:max(20px, env(safe-area-inset-bottom) + 12px);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="stripe" id="stripe"></div>
+  <header>
+    <div class="toprow">
+      <div>
+        <div class="eyebrow">Packing list</div>
+        <div class="list-name-row">
+          <span class="dot" id="listDot"></span>
+          <span class="list-name" id="listNameDisplay">—</span>
+        </div>
+        <div class="overall" id="overallLabel"></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <span class="sync-note" id="syncNote"></span>
+        <div class="list-picker">
+          <button class="trigger" id="listTrigger">Switch list ▾</button>
+          <div class="list-panel" id="listPanel"></div>
+        </div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="tool-btn" id="resetBtn" title="Clear every tick in this list — items stay put">↺ Reset ticks</button>
+      <div class="sync-picker">
+        <button class="tool-btn" id="syncTrigger">⇅ <span id="syncStatusLabel">Sync</span></button>
+        <div class="sync-panel" id="syncPanel"></div>
+      </div>
+    </div>
+    <div class="composition" id="composition"></div>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="body">
+    <div id="items"></div>
+    <div class="add-row">
+      <span class="plus" id="addPlus">+</span>
+      <input id="addInput" placeholder="Add an item and press Enter…" />
+    </div>
+  </div>
+
+  <footer>
+    <div class="progress-label" id="progressLabel">0 / 0</div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  </footer>
+</div>
+
+<!-- Firebase compat SDK — same pattern as the Henley project (script tags, no bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+// ---- Optional cross-device sync (Firebase Realtime Database) ----------------
+// 1. Create/reuse a Firebase project at https://console.firebase.google.com
+// 2. Build > Realtime Database > Create database.
+// 3. Build > Authentication > Sign-in method > enable Anonymous.
+// 4. Project settings > General > Your apps > add a Web app > copy the config below
+//    (make sure to include databaseURL — Realtime Database needs it, unlike Firestore).
+// 5. Realtime Database > Rules, paste the rules given alongside this file, then Publish.
+// Leave apiKey as-is (unfilled) to run in local-only mode (localStorage, no sync).
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.YOUR_REGION.firebasedatabase.app",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const LIST_COLORS = ['#3B82F6','#8B5CF6','#F59E0B','#14B8A6','#F43F5E','#22C55E','#6366F1','#F97316'];
+const CAT_COLORS  = ['#3B82F6','#8B5CF6','#14B8A6','#F59E0B','#F43F5E','#22C55E','#6366F1','#F97316'];
+
+function hexToRgba(hex, a){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+let uid = 0;
+const nextId = () => 'i' + (++uid);
+const mkItems = (arr) => arr.map(t => ({ id: nextId(), text: t, done: false }));
+const mkCat = (arr, color) => ({ color, items: mkItems(arr) });
+
+let state = {
+  lists: {
+    "Glasgow Trip": {
+      color: LIST_COLORS[0],
+      categories: {
+        "Clothes":     mkCat(["Day pants x10","Night pants x5","Day socks x10","Night socks x3","Black tees x4","Casual tees x4","Night shirts x3","Basketball shorts","Trackies","Black hoodie","Other jumper","Raincoat","Cap","Black jeans","Navy trousers","Blue jeans","Extra trainers black"], CAT_COLORS[0]),
+        "Work items":  mkCat(["ID","Glasses","Ipad","Pencil case"], CAT_COLORS[1]),
+        "Toiletries":  mkCat(["Toothbrush","Toothpaste","Interdental","Conditioner","Day SPF","Night moisturiser","Tweezers","Cleanser"], CAT_COLORS[2]),
+        "Drugs":       mkCat(["Hayfever tabs","Nose spray","Melatonin","Inhaler","Ibuprofen","Grazax"], CAT_COLORS[3]),
+        "Extras":      mkCat(["Slides","Phone charger","Kindle","Ipad charger","Earbuds","Sunglasses"], CAT_COLORS[4])
+      }
+    }
+  },
+  currentList: "Glasgow Trip",
+  currentCategory: "Clothes"
+};
+
+const $ = (sel) => document.querySelector(sel);
+const stripe = $('#stripe');
+const listDot = $('#listDot');
+const listNameDisplay = $('#listNameDisplay');
+const overallLabel = $('#overallLabel');
+const listPanel = $('#listPanel');
+const listTrigger = $('#listTrigger');
+const compositionEl = $('#composition');
+const tabsEl = $('#tabs');
+const itemsEl = $('#items');
+const addInput = $('#addInput');
+const addPlus = $('#addPlus');
+const progressLabel = $('#progressLabel');
+const progressFill = $('#progressFill');
+const resetBtn = $('#resetBtn');
+const syncTrigger = $('#syncTrigger');
+const syncStatusLabel = $('#syncStatusLabel');
+const syncPanel = $('#syncPanel');
+
+const STORAGE_KEY = 'packing-list-state-v1';
+const SYNC_CODE_KEY = 'packing-list-sync-code';
+
+function firebaseConfigured(){
+  return firebaseConfig.apiKey && !String(firebaseConfig.apiKey).startsWith('YOUR_');
+}
+
+let fbApp = null, dbRTDB = null, syncCode = null, syncRef = null, syncCallback = null;
+let applyingRemote = false, syncStatus = 'off';
+// syncStatus: 'off' | 'connecting' | 'connected' | 'error'
+let authReady = false;
+let authReadyQueue = [];
+function whenAuthReady(fn){
+  if(authReady) fn(); else authReadyQueue.push(fn);
+}
+
+function initFirebase(){
+  if(!firebaseConfigured() || fbApp) return;
+  try{
+    fbApp = firebase.initializeApp(firebaseConfig);
+    dbRTDB = firebase.database();
+    // Anonymous auth, silently — no login screen, just gives the browser an
+    // identity so the database rules (auth != null) let it read/write.
+    firebase.auth().onAuthStateChanged(user => {
+      if(user){
+        authReady = true;
+        authReadyQueue.forEach(fn => fn());
+        authReadyQueue = [];
+      }
+    });
+    firebase.auth().signInAnonymously().catch(err => {
+      console.error('Anonymous sign-in failed', err);
+      syncStatus = 'error';
+      renderSyncStatus();
+    });
+  }catch(err){
+    console.error('Firebase init failed', err);
+  }
+}
+
+function generateSyncCode(){
+  if(crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random()*16|0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function connectSync(code){
+  if(!firebaseConfigured()) return;
+  syncStatus = 'connecting';
+  renderSyncStatus();
+  whenAuthReady(() => {
+    if(!dbRTDB) return;
+    if(syncRef && syncCallback) syncRef.off('value', syncCallback);
+    syncCode = code;
+    localStorage.setItem(SYNC_CODE_KEY, code);
+    syncRef = dbRTDB.ref('packingLists/' + code);
+    syncCallback = (snapshot) => {
+      syncStatus = 'connected';
+      const data = snapshot.val();
+      if(data && data.payload){
+        const localTs = state.__updatedAt || 0;
+        if((data.updatedAt || 0) > localTs){
+          try{
+            const parsed = JSON.parse(data.payload);
+            applyingRemote = true;
+            uid = parsed.uid || uid;
+            state = parsed.state;
+            state.__updatedAt = data.updatedAt;
+            if(!currentCats()[state.currentCategory]) state.currentCategory = Object.keys(currentCats())[0] || null;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ uid, state }));
+            renderAll();
+            applyingRemote = false;
+          }catch(err){ console.error('Could not read synced data', err); }
+        }
+      } else if(!data){
+        pushToCloud();
+      }
+      renderSyncStatus();
+    };
+    syncRef.on('value', syncCallback, (err) => {
+      console.error('Sync error', err);
+      syncStatus = 'error';
+      renderSyncStatus();
+    });
+  });
+}
+
+function disconnectSync(){
+  if(syncRef && syncCallback) syncRef.off('value', syncCallback);
+  syncRef = null;
+  syncCallback = null;
+  syncCode = null;
+  syncStatus = 'off';
+  localStorage.removeItem(SYNC_CODE_KEY);
+  renderSyncStatus();
+}
+
+function pushToCloud(){
+  if(!dbRTDB || !syncCode) return;
+  const ts = Date.now();
+  state.__updatedAt = ts;
+  dbRTDB.ref('packingLists/' + syncCode)
+    .set({ payload: JSON.stringify({ uid, state }), updatedAt: ts })
+    .catch(err => {
+      console.error('Cloud save failed', err);
+      syncStatus = 'error';
+      renderSyncStatus();
+    });
+}
+
+let saveTimer = null;
+function persist(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ uid, state }));
+      flashSynced();
+    }catch(err){
+      // e.g. private/incognito mode with storage disabled — fails silently
+      console.error('Save failed', err);
+    }
+    if(dbRTDB && syncCode && !applyingRemote) pushToCloud();
+  }, 150);
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && parsed.state && parsed.state.lists){
+        uid = parsed.uid || 0;
+        state = parsed.state;
+        return true;
+      }
+    }
+  }catch(err){
+    // nothing saved yet, or storage unavailable — fine, we'll use the starter list
+  }
+  return false;
+}
+function flashSynced(){
+  const el = document.getElementById('syncNote');
+  if(!el) return;
+  el.textContent = 'Saved';
+  el.classList.add('show');
+  clearTimeout(flashSynced._t);
+  flashSynced._t = setTimeout(() => { el.classList.remove('show'); }, 900);
+}
+
+function resetTicks(){
+  const cats = currentCats();
+  const total = Object.values(cats).reduce((n,c)=>n+c.items.length,0);
+  if(!total){ return; }
+  if(!confirm(`Reset all ticks in "${state.currentList}"? All ${total} items stay — they'll just be marked unpacked again.`)) return;
+  for(const cat of Object.values(cats)){
+    cat.items.forEach(it => it.done = false);
+  }
+  renderAll();
+  persist();
+}
+
+function renderSyncStatus(){
+  const dotColor = { off:'#A2A9B4', connecting:'#F59E0B', connected:'#22C55E', error:'#EF4444' }[syncStatus];
+  syncStatusLabel.innerHTML = `<span class="sync-dot" style="background:${dotColor}"></span>${
+    syncStatus === 'connected' ? 'Synced' : syncStatus === 'connecting' ? 'Syncing…' : syncStatus === 'error' ? 'Sync error' : 'Sync'
+  }`;
+  renderSyncPanel();
+}
+
+function renderSyncPanel(){
+  if(!firebaseConfigured()){
+    syncPanel.innerHTML = `
+      <h4>Sync isn't set up yet</h4>
+      <p>Add your Firebase config near the top of the script to turn this on. Until then, everything just saves to this device.</p>
+    `;
+    return;
+  }
+  if(syncCode){
+    syncPanel.innerHTML = `
+      <h4>${syncStatus === 'connected' ? 'Synced across devices' : syncStatus === 'error' ? 'Sync error' : 'Connecting…'}</h4>
+      <p>Enter this code on your other devices to link them to this list.</p>
+      <div class="code-box"><code>${syncCode}</code><button data-copy-code>Copy</button></div>
+      <button data-stop-sync style="width:100%;margin-top:4px;">Stop syncing this device</button>
+    `;
+  } else {
+    syncPanel.innerHTML = `
+      <h4>Sync across devices</h4>
+      <p>Start syncing to get a code, then enter that same code on your other devices.</p>
+      <button class="primary" data-start-sync style="width:100%;">Start syncing</button>
+      <p style="margin-bottom:4px;">Already have a code from another device?</p>
+      <input type="text" id="joinCodeInput" placeholder="Paste sync code…" />
+      <button data-join-sync style="width:100%;">Link this device</button>
+    `;
+  }
+}
+
+function currentListObj(){ return state.lists[state.currentList]; }
+function currentCats(){ return currentListObj().categories; }
+function currentCatObj(){ return currentCats()[state.currentCategory]; }
+function currentItems(){ return currentCatObj() ? currentCatObj().items : []; }
+
+function renderHeader(){
+  const list = currentListObj();
+  stripe.style.background = list.color;
+  listDot.style.background = list.color;
+  listNameDisplay.textContent = state.currentList;
+
+  let totalItems = 0, totalDone = 0;
+  for(const cat of Object.values(list.categories)){
+    totalItems += cat.items.length;
+    totalDone += cat.items.filter(i=>i.done).length;
+  }
+  overallLabel.innerHTML = totalItems ? `<b>${totalDone} of ${totalItems}</b> packed overall` : 'No items yet';
+
+  const names = Object.keys(state.lists);
+  listPanel.innerHTML = names.map(name => {
+    const l = state.lists[name];
+    let n=0; for(const c of Object.values(l.categories)) n += c.items.length;
+    return `
+    <div class="list-row ${name===state.currentList?'active':''}" data-switch="${name}">
+      <span class="dot" style="background:${l.color}"></span>
+      <span class="name">${name}</span>
+      <span class="count">${n} items</span>
+      ${names.length>1 ? `<button class="del" data-dellist="${name}" title="Delete list">✕</button>` : ''}
+    </div>`;
+  }).join('') + `
+    <div class="panel-actions">
+      <button data-action="new">+ Blank list</button>
+      <button data-action="dup">⧉ Duplicate</button>
+    </div>
+  `;
+}
+
+function renderComposition(){
+  const cats = currentCats();
+  compositionEl.innerHTML = Object.entries(cats).map(([name, cat]) => {
+    const total = cat.items.length || 1;
+    const done = cat.items.filter(i=>i.done).length;
+    const pct = cat.items.length ? done/cat.items.length : 0;
+    return `<div class="comp-seg" data-tab="${name}" title="${name}: ${done}/${cat.items.length}"
+      style="flex-grow:${Math.max(total,1)};background:${hexToRgba(cat.color, 0.25 + pct*0.65)}"></div>`;
+  }).join('');
+}
+
+function renderTabs(){
+  const cats = currentCats();
+  tabsEl.innerHTML = Object.entries(cats).map(([name, cat]) => {
+    const active = name === state.currentCategory;
+    const style = active
+      ? `background:${cat.color};color:#fff;border-color:${cat.color};`
+      : `background:${hexToRgba(cat.color,0.1)};color:${cat.color};border-color:${hexToRgba(cat.color,0.25)};`;
+    return `<button class="tab" style="${style}" data-tab="${name}" title="Double-click to remove section">${name}<span class="n">${cat.items.length}</span></button>`;
+  }).join('') + `<button class="tab add" data-addcat="1">+ Section</button>`;
+}
+
+function renderItems(){
+  const cat = currentCatObj();
+  const items = cat ? cat.items : [];
+  const color = cat ? cat.color : '#999';
+
+  if(!items.length){
+    itemsEl.innerHTML = `<div class="empty">Nothing here yet — add your first item below.</div>`;
+  } else {
+    itemsEl.innerHTML = items.map(it => `
+      <div class="item ${it.done?'done':''}" data-id="${it.id}">
+        <span class="accent" style="background:${color}"></span>
+        <button class="check ${it.done?'done':''}" data-check="${it.id}" style="${it.done?`background:${color};border-color:${color};`:''}"></button>
+        <div class="item-text" data-edit="${it.id}">${escapeHtml(it.text)}</div>
+        <button class="del-btn" data-del="${it.id}">✕</button>
+      </div>
+    `).join('');
+  }
+  addPlus.style.color = color;
+
+  const done = items.filter(i=>i.done).length;
+  progressLabel.textContent = `${done} / ${items.length}`;
+  progressFill.style.width = items.length ? (done/items.length*100)+'%' : '0%';
+  progressFill.style.background = color;
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function renderAll(){ renderHeader(); renderComposition(); renderTabs(); renderItems(); }
+
+resetBtn.addEventListener('click', resetTicks);
+
+syncTrigger.addEventListener('click', () => syncPanel.classList.toggle('open'));
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('.sync-picker')) syncPanel.classList.remove('open');
+});
+syncPanel.addEventListener('click', async (e) => {
+  if(e.target.closest('[data-start-sync]')){
+    if(!firebaseConfigured()){ alert('Add your Firebase config in the script first.'); return; }
+    initFirebase();
+    const code = generateSyncCode();
+    connectSync(code);
+    return;
+  }
+  if(e.target.closest('[data-join-sync]')){
+    const input = document.getElementById('joinCodeInput');
+    const code = input && input.value.trim();
+    if(!code){ alert('Paste the sync code from your other device first.'); return; }
+    if(!firebaseConfigured()){ alert('Add your Firebase config in the script first.'); return; }
+    initFirebase();
+    connectSync(code);
+    return;
+  }
+  if(e.target.closest('[data-stop-sync]')){
+    if(confirm('Stop syncing this device? Your list stays on this device, it just won\'t update from others anymore.')){
+      disconnectSync();
+    }
+    return;
+  }
+  if(e.target.closest('[data-copy-code]')){
+    try{
+      await navigator.clipboard.writeText(syncCode);
+      const btn = e.target.closest('[data-copy-code]');
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = old; }, 1200);
+    }catch(err){ /* clipboard unavailable — user can select the code manually */ }
+  }
+});
+
+listTrigger.addEventListener('click', () => listPanel.classList.toggle('open'));
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('.list-picker')) listPanel.classList.remove('open');
+});
+
+listPanel.addEventListener('click', (e) => {
+  const sw = e.target.closest('[data-switch]');
+  if(sw){
+    state.currentList = sw.dataset.switch;
+    state.currentCategory = Object.keys(currentCats())[0] || null;
+    renderAll();
+    persist();
+    return;
+  }
+  const del = e.target.closest('[data-dellist]');
+  if(del){
+    e.stopPropagation();
+    const name = del.dataset.dellist;
+    if(Object.keys(state.lists).length <= 1) return;
+    if(confirm(`Delete list "${name}"? This can't be undone.`)){
+      delete state.lists[name];
+      if(state.currentList === name){
+        state.currentList = Object.keys(state.lists)[0];
+        state.currentCategory = Object.keys(currentCats())[0] || null;
+      }
+      renderAll();
+      persist();
+    }
+    return;
+  }
+  const action = e.target.closest('[data-action]');
+  if(action){
+    if(action.dataset.action === 'new'){
+      const name = prompt('Name for the new list:');
+      if(!name) return;
+      if(state.lists[name]) { alert('A list with that name already exists.'); return; }
+      const color = LIST_COLORS[Object.keys(state.lists).length % LIST_COLORS.length];
+      state.lists[name] = { color, categories: { "General": mkCat([], CAT_COLORS[0]) } };
+      state.currentList = name;
+      state.currentCategory = "General";
+    } else if(action.dataset.action === 'dup'){
+      const base = state.currentList;
+      const name = prompt('Name for the duplicated list:', base + ' copy');
+      if(!name) return;
+      if(state.lists[name]) { alert('A list with that name already exists.'); return; }
+      const color = LIST_COLORS[Object.keys(state.lists).length % LIST_COLORS.length];
+      const cats = {};
+      for(const [cname, cat] of Object.entries(state.lists[base].categories)){
+        cats[cname] = { color: cat.color, items: cat.items.map(it => ({ id: nextId(), text: it.text, done: false })) };
+      }
+      state.lists[name] = { color, categories: cats };
+      state.currentList = name;
+      state.currentCategory = Object.keys(cats)[0] || null;
+    }
+    listPanel.classList.remove('open');
+    renderAll();
+    persist();
+  }
+});
+
+compositionEl.addEventListener('click', (e) => {
+  const seg = e.target.closest('[data-tab]');
+  if(seg){ state.currentCategory = seg.dataset.tab; renderAll(); persist(); }
+});
+
+tabsEl.addEventListener('click', (e) => {
+  const add = e.target.closest('[data-addcat]');
+  if(add){
+    const name = prompt('Name for the new section:');
+    if(!name) return;
+    const cats = currentCats();
+    if(cats[name]) { alert('That section already exists.'); return; }
+    const color = CAT_COLORS[Object.keys(cats).length % CAT_COLORS.length];
+    cats[name] = mkCat([], color);
+    state.currentCategory = name;
+    renderAll();
+    persist();
+    return;
+  }
+  const tab = e.target.closest('[data-tab]');
+  if(tab){
+    state.currentCategory = tab.dataset.tab;
+    renderAll();
+    persist();
+  }
+});
+tabsEl.addEventListener('dblclick', (e) => {
+  const tab = e.target.closest('[data-tab]');
+  if(!tab) return;
+  const cats = currentCats();
+  if(Object.keys(cats).length <= 1) { alert('A list needs at least one section.'); return; }
+  if(confirm(`Remove section "${tab.dataset.tab}" and its items?`)){
+    delete cats[tab.dataset.tab];
+    state.currentCategory = Object.keys(cats)[0];
+    renderAll();
+    persist();
+  }
+});
+
+itemsEl.addEventListener('click', (e) => {
+  const chk = e.target.closest('[data-check]');
+  if(chk){
+    const it = currentItems().find(i => i.id === chk.dataset.check);
+    it.done = !it.done;
+    renderHeader();
+    renderComposition();
+    renderItems();
+    persist();
+    return;
+  }
+  const del = e.target.closest('[data-del]');
+  if(del){
+    const arr = currentItems();
+    const idx = arr.findIndex(i => i.id === del.dataset.del);
+    arr.splice(idx,1);
+    renderHeader();
+    renderComposition();
+    renderTabs();
+    renderItems();
+    persist();
+    return;
+  }
+  const edit = e.target.closest('[data-edit]');
+  if(edit && !edit.querySelector('input')){
+    const it = currentItems().find(i => i.id === edit.dataset.edit);
+    edit.innerHTML = `<input value="${escapeHtml(it.text)}" />`;
+    const input = edit.querySelector('input');
+    input.focus();
+    input.select();
+    const save = () => {
+      const val = input.value.trim();
+      if(val) it.text = val; else {
+        const arr = currentItems();
+        arr.splice(arr.findIndex(i=>i.id===it.id),1);
+      }
+      renderHeader();
+      renderComposition();
+      renderTabs();
+      renderItems();
+      persist();
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', (ev) => {
+      if(ev.key==='Enter') input.blur();
+      if(ev.key==='Escape'){ input.removeEventListener('blur',save); renderItems(); }
+    });
+  }
+});
+
+addInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    const val = addInput.value.trim();
+    if(!val) return;
+    currentItems().push({ id: nextId(), text: val, done: false });
+    addInput.value = '';
+    renderHeader();
+    renderComposition();
+    renderTabs();
+    renderItems();
+    persist();
+  }
+});
+
+const loaded = loadState();
+renderAll();
+if(!loaded) persist();
+
+initFirebase();
+renderSyncStatus();
+const existingSyncCode = localStorage.getItem(SYNC_CODE_KEY);
+if(existingSyncCode && firebaseConfigured()) connectSync(existingSyncCode);
+</script>
+</body>
+</html>
