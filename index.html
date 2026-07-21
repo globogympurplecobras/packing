@@ -174,47 +174,20 @@
     touch-action:manipulation;
   }
   .tool-btn:hover{background:#EEF0F3;color:var(--text);}
-  .sync-picker{position:relative;}
-  .sync-panel{
-    display:none;
-    position:absolute;
-    left:0;
-    top:calc(100% + 8px);
-    width:280px;
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:12px;
-    box-shadow:0 20px 45px -15px rgba(20,25,35,0.35);
-    padding:14px;
-    z-index:30;
-    font-size:12.5px;
+  .sync-status{
+    display:inline-flex;
+    align-items:center;
+    font-family:'Inter', sans-serif;
+    font-size:11.5px;
+    font-weight:600;
     color:var(--text-dim);
-    line-height:1.5;
-  }
-  .sync-panel.open{display:block;}
-  .sync-panel h4{margin:0 0 6px;font-size:12.5px;color:var(--text);font-weight:700;}
-  .sync-panel .code-box{
-    display:flex;align-items:center;gap:6px;margin:8px 0;
-  }
-  .sync-panel .code-box code{
-    flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;
-    padding:7px 8px;font-size:11.5px;word-break:break-all;color:var(--text);
-  }
-  .sync-panel button{
-    font-family:'Inter', sans-serif;font-size:11.5px;font-weight:600;
-    padding:8px 10px;border-radius:8px;border:1px solid var(--border);
-    background:var(--card);color:var(--text);cursor:pointer;
-  }
-  .sync-panel button:hover{background:var(--bg);}
-  .sync-panel button.primary{background:#3B82F6;border-color:#3B82F6;color:#fff;}
-  .sync-panel button.primary:hover{background:#2f6fd6;}
-  .sync-panel input[type=text]{
-    width:100%;font-family:'Inter', sans-serif;font-size:12.5px;
-    padding:8px 9px;border:1px solid var(--border);border-radius:8px;margin:6px 0;
-    color:var(--text);
+    background:var(--bg);
+    border:1px solid var(--border);
+    padding:7px 11px;
+    border-radius:8px;
   }
   .sync-dot{
-    display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;
+    display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;
   }
 
   .composition{
@@ -383,7 +356,6 @@
     .list-picker{align-self:stretch;}
     .list-picker button.trigger{width:100%;justify-content:space-between;}
     .list-panel{right:0;left:0;width:auto;}
-    .sync-panel{left:0;right:0;width:auto;}
   }
   @media (max-width:480px){
     body{
@@ -442,10 +414,7 @@
     </div>
     <div class="toolbar">
       <button class="tool-btn" id="resetBtn" title="Clear every tick in this list — items stay put">↺ Reset ticks</button>
-      <div class="sync-picker">
-        <button class="tool-btn" id="syncTrigger">⇅ <span id="syncStatusLabel">Sync</span></button>
-        <div class="sync-panel" id="syncPanel"></div>
-      </div>
+      <span class="sync-status" id="syncStatusLabel"></span>
     </div>
     <div class="composition" id="composition"></div>
   </header>
@@ -481,13 +450,13 @@
 // 5. Realtime Database > Rules, paste the rules given alongside this file, then Publish.
 // Leave apiKey as-is (unfilled) to run in local-only mode (localStorage, no sync).
 const firebaseConfig = {
-  apiKey: "AIzaSyAL-DruFeLHDECzEGaHg461CYiriUKsrNE",
-  authDomain: "packing-d7d08.firebaseapp.com",
-  databaseURL: "https://packing-d7d08-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "packing-d7d08",
-  storageBucket: "packing-d7d08.firebasestorage.app",
-  messagingSenderId: "1024440871793",
-  appId: "1:1024440871793:web:6e7164e6a2413c574fa4d0"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.YOUR_REGION.firebasedatabase.app",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 const LIST_COLORS = ['#3B82F6','#8B5CF6','#F59E0B','#14B8A6','#F43F5E','#22C55E','#6366F1','#F97316'];
@@ -536,18 +505,19 @@ const addPlus = $('#addPlus');
 const progressLabel = $('#progressLabel');
 const progressFill = $('#progressFill');
 const resetBtn = $('#resetBtn');
-const syncTrigger = $('#syncTrigger');
 const syncStatusLabel = $('#syncStatusLabel');
-const syncPanel = $('#syncPanel');
 
 const STORAGE_KEY = 'packing-list-state-v1';
-const SYNC_CODE_KEY = 'packing-list-sync-code';
+// Henley-style pattern: one fixed data path, no room/join code — this deployment
+// is just you across your own devices, so every device that has the same
+// firebaseConfig automatically syncs to the same place.
+const SYNC_PATH = 'packingListApp/state';
 
 function firebaseConfigured(){
   return firebaseConfig.apiKey && !String(firebaseConfig.apiKey).startsWith('YOUR_');
 }
 
-let fbApp = null, dbRTDB = null, syncCode = null, syncRef = null, syncCallback = null;
+let fbApp = null, dbRTDB = null, syncRef = null, syncCallback = null;
 let applyingRemote = false, syncStatus = 'off';
 // syncStatus: 'off' | 'connecting' | 'connected' | 'error'
 let authReady = false;
@@ -580,24 +550,17 @@ function initFirebase(){
   }
 }
 
-function generateSyncCode(){
-  if(crypto.randomUUID) return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random()*16|0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-function connectSync(code){
-  if(!firebaseConfigured()) return;
+function connectSync(){
+  if(!firebaseConfigured()){
+    syncStatus = 'off';
+    renderSyncStatus();
+    return;
+  }
   syncStatus = 'connecting';
   renderSyncStatus();
   whenAuthReady(() => {
     if(!dbRTDB) return;
-    if(syncRef && syncCallback) syncRef.off('value', syncCallback);
-    syncCode = code;
-    localStorage.setItem(SYNC_CODE_KEY, code);
-    syncRef = dbRTDB.ref('packingLists/' + code);
+    syncRef = dbRTDB.ref(SYNC_PATH);
     syncCallback = (snapshot) => {
       syncStatus = 'connected';
       const data = snapshot.val();
@@ -629,21 +592,11 @@ function connectSync(code){
   });
 }
 
-function disconnectSync(){
-  if(syncRef && syncCallback) syncRef.off('value', syncCallback);
-  syncRef = null;
-  syncCallback = null;
-  syncCode = null;
-  syncStatus = 'off';
-  localStorage.removeItem(SYNC_CODE_KEY);
-  renderSyncStatus();
-}
-
 function pushToCloud(){
-  if(!dbRTDB || !syncCode) return;
+  if(!dbRTDB) return;
   const ts = Date.now();
   state.__updatedAt = ts;
-  dbRTDB.ref('packingLists/' + syncCode)
+  dbRTDB.ref(SYNC_PATH)
     .set({ payload: JSON.stringify({ uid, state }), updatedAt: ts })
     .catch(err => {
       console.error('Cloud save failed', err);
@@ -663,7 +616,7 @@ function persist(){
       // e.g. private/incognito mode with storage disabled — fails silently
       console.error('Save failed', err);
     }
-    if(dbRTDB && syncCode && !applyingRemote) pushToCloud();
+    if(dbRTDB && !applyingRemote) pushToCloud();
   }, 150);
 }
 function loadState(){
@@ -705,37 +658,18 @@ function resetTicks(){
 
 function renderSyncStatus(){
   const dotColor = { off:'#A2A9B4', connecting:'#F59E0B', connected:'#22C55E', error:'#EF4444' }[syncStatus];
-  syncStatusLabel.innerHTML = `<span class="sync-dot" style="background:${dotColor}"></span>${
-    syncStatus === 'connected' ? 'Synced' : syncStatus === 'connecting' ? 'Syncing…' : syncStatus === 'error' ? 'Sync error' : 'Sync'
-  }`;
-  renderSyncPanel();
-}
-
-function renderSyncPanel(){
-  if(!firebaseConfigured()){
-    syncPanel.innerHTML = `
-      <h4>Sync isn't set up yet</h4>
-      <p>Add your Firebase config near the top of the script to turn this on. Until then, everything just saves to this device.</p>
-    `;
-    return;
-  }
-  if(syncCode){
-    syncPanel.innerHTML = `
-      <h4>${syncStatus === 'connected' ? 'Synced across devices' : syncStatus === 'error' ? 'Sync error' : 'Connecting…'}</h4>
-      <p>Enter this code on your other devices to link them to this list.</p>
-      <div class="code-box"><code>${syncCode}</code><button data-copy-code>Copy</button></div>
-      <button data-stop-sync style="width:100%;margin-top:4px;">Stop syncing this device</button>
-    `;
-  } else {
-    syncPanel.innerHTML = `
-      <h4>Sync across devices</h4>
-      <p>Start syncing to get a code, then enter that same code on your other devices.</p>
-      <button class="primary" data-start-sync style="width:100%;">Start syncing</button>
-      <p style="margin-bottom:4px;">Already have a code from another device?</p>
-      <input type="text" id="joinCodeInput" placeholder="Paste sync code…" />
-      <button data-join-sync style="width:100%;">Link this device</button>
-    `;
-  }
+  const text = {
+    off: 'Local-only',
+    connecting: 'Connecting…',
+    connected: 'Live',
+    error: 'Sync error'
+  }[syncStatus];
+  syncStatusLabel.innerHTML = `<span class="sync-dot" style="background:${dotColor}"></span>${text}`;
+  syncStatusLabel.title = !firebaseConfigured()
+    ? 'Add your Firebase config in the script to sync across your devices'
+    : syncStatus === 'connected' ? 'Synced live with your other devices'
+    : syncStatus === 'error' ? 'Could not reach the sync database — check your Firebase config and rules'
+    : 'Connecting…';
 }
 
 function currentListObj(){ return state.lists[state.currentList]; }
@@ -829,44 +763,6 @@ function escapeHtml(s){
 function renderAll(){ renderHeader(); renderComposition(); renderTabs(); renderItems(); }
 
 resetBtn.addEventListener('click', resetTicks);
-
-syncTrigger.addEventListener('click', () => syncPanel.classList.toggle('open'));
-document.addEventListener('click', (e) => {
-  if(!e.target.closest('.sync-picker')) syncPanel.classList.remove('open');
-});
-syncPanel.addEventListener('click', async (e) => {
-  if(e.target.closest('[data-start-sync]')){
-    if(!firebaseConfigured()){ alert('Add your Firebase config in the script first.'); return; }
-    initFirebase();
-    const code = generateSyncCode();
-    connectSync(code);
-    return;
-  }
-  if(e.target.closest('[data-join-sync]')){
-    const input = document.getElementById('joinCodeInput');
-    const code = input && input.value.trim();
-    if(!code){ alert('Paste the sync code from your other device first.'); return; }
-    if(!firebaseConfigured()){ alert('Add your Firebase config in the script first.'); return; }
-    initFirebase();
-    connectSync(code);
-    return;
-  }
-  if(e.target.closest('[data-stop-sync]')){
-    if(confirm('Stop syncing this device? Your list stays on this device, it just won\'t update from others anymore.')){
-      disconnectSync();
-    }
-    return;
-  }
-  if(e.target.closest('[data-copy-code]')){
-    try{
-      await navigator.clipboard.writeText(syncCode);
-      const btn = e.target.closest('[data-copy-code]');
-      const old = btn.textContent;
-      btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = old; }, 1200);
-    }catch(err){ /* clipboard unavailable — user can select the code manually */ }
-  }
-});
 
 listTrigger.addEventListener('click', () => listPanel.classList.toggle('open'));
 document.addEventListener('click', (e) => {
@@ -1036,9 +932,7 @@ renderAll();
 if(!loaded) persist();
 
 initFirebase();
-renderSyncStatus();
-const existingSyncCode = localStorage.getItem(SYNC_CODE_KEY);
-if(existingSyncCode && firebaseConfigured()) connectSync(existingSyncCode);
+connectSync();
 </script>
 </body>
 </html>
