@@ -450,13 +450,13 @@
 // 5. Realtime Database > Rules, paste the rules given alongside this file, then Publish.
 // Leave apiKey as-is (unfilled) to run in local-only mode (localStorage, no sync).
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.YOUR_REGION.firebasedatabase.app",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAL-DruFeLHDECzEGaHg461CYiriUKsrNE",
+  authDomain: "packing-d7d08.firebaseapp.com",
+  databaseURL: "https://packing-d7d08-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "packing-d7d08",
+  storageBucket: "packing-d7d08.firebasestorage.app",
+  messagingSenderId: "1024440871793",
+  appId: "1:1024440871793:web:6e7164e6a2413c574fa4d0"
 };
 
 const LIST_COLORS = ['#3B82F6','#8B5CF6','#F59E0B','#14B8A6','#F43F5E','#22C55E','#6366F1','#F97316'];
@@ -520,6 +520,13 @@ function firebaseConfigured(){
 let fbApp = null, dbRTDB = null, syncRef = null, syncCallback = null;
 let applyingRemote = false, syncStatus = 'off';
 // syncStatus: 'off' | 'connecting' | 'connected' | 'error'
+// Becomes true only once this device has completed its first read of the
+// cloud state (or confirmed there isn't one yet). Local edits made before
+// that point must NOT be pushed to the cloud — otherwise a freshly loaded
+// device (still holding its hardcoded starter list) can win a race against
+// the real synced data purely because its timestamp is newer, clobbering
+// the cloud (and then every other device) with blank/stale data.
+let syncInitialized = false;
 let authReady = false;
 let authReadyQueue = [];
 function whenAuthReady(fn){
@@ -582,6 +589,7 @@ function connectSync(){
       } else if(!data){
         pushToCloud();
       }
+      syncInitialized = true;
       renderSyncStatus();
     };
     syncRef.on('value', syncCallback, (err) => {
@@ -616,7 +624,7 @@ function persist(){
       // e.g. private/incognito mode with storage disabled — fails silently
       console.error('Save failed', err);
     }
-    if(dbRTDB && !applyingRemote) pushToCloud();
+    if(dbRTDB && !applyingRemote && syncInitialized) pushToCloud();
   }, 150);
 }
 function loadState(){
