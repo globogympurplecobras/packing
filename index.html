@@ -229,6 +229,17 @@
     color:var(--text-dim);
   }
   .tab.add:hover{border-color:var(--text-faint);}
+  .item-cat-tag{
+    display:inline-block;
+    font-size:9.5px;
+    font-weight:700;
+    letter-spacing:0.3px;
+    text-transform:uppercase;
+    padding:2px 6px;
+    border-radius:5px;
+    margin-right:7px;
+    vertical-align:middle;
+  }
 
   .body{
     padding:14px 22px 6px;
@@ -419,11 +430,17 @@
     <div class="composition" id="composition"></div>
   </header>
 
-  <div class="tabs" id="tabs"></div>
+  <div class="tabs" id="tabs">
+    <div id="tabButtons" style="display:contents;"></div>
+    <div class="list-picker" id="sectionManage" style="margin-left:auto;">
+      <button class="tool-btn trigger" id="sectionTrigger" type="button">⚙ Sections</button>
+      <div class="list-panel" id="sectionPanel"></div>
+    </div>
+  </div>
 
   <div class="body">
     <div id="items"></div>
-    <div class="add-row">
+    <div class="add-row" id="addRow">
       <span class="plus" id="addPlus">+</span>
       <input id="addInput" placeholder="Add an item and press Enter…" />
     </div>
@@ -461,6 +478,9 @@ const firebaseConfig = {
 
 const LIST_COLORS = ['#3B82F6','#8B5CF6','#F59E0B','#14B8A6','#F43F5E','#22C55E','#6366F1','#F97316'];
 const CAT_COLORS  = ['#3B82F6','#8B5CF6','#14B8A6','#F59E0B','#F43F5E','#22C55E','#6366F1','#F97316'];
+// Pseudo-category id for the pinned "Remaining" view — never stored as a
+// real section, just a UI mode that pools every undone item across sections.
+const ALL_KEY = '__all__';
 
 function hexToRgba(hex, a){
   const h = hex.replace('#','');
@@ -499,7 +519,12 @@ const listPanel = $('#listPanel');
 const listTrigger = $('#listTrigger');
 const compositionEl = $('#composition');
 const tabsEl = $('#tabs');
+const tabButtonsEl = $('#tabButtons');
+const sectionManage = $('#sectionManage');
+const sectionTrigger = $('#sectionTrigger');
+const sectionPanel = $('#sectionPanel');
 const itemsEl = $('#items');
+const addRow = $('#addRow');
 const addInput = $('#addInput');
 const addPlus = $('#addPlus');
 const progressLabel = $('#progressLabel');
@@ -580,7 +605,7 @@ function connectSync(){
             uid = parsed.uid || uid;
             state = parsed.state;
             state.__updatedAt = data.updatedAt;
-            if(!currentCats()[state.currentCategory]) state.currentCategory = Object.keys(currentCats())[0] || null;
+            if(state.currentCategory !== ALL_KEY && !currentCats()[state.currentCategory]) state.currentCategory = Object.keys(currentCats())[0] || null;
             localStorage.setItem(STORAGE_KEY, JSON.stringify({ uid, state }));
             renderAll();
             applyingRemote = false;
@@ -683,7 +708,34 @@ function renderSyncStatus(){
 function currentListObj(){ return state.lists[state.currentList]; }
 function currentCats(){ return currentListObj().categories; }
 function currentCatObj(){ return currentCats()[state.currentCategory]; }
-function currentItems(){ return currentCatObj() ? currentCatObj().items : []; }
+function currentItems(){
+  if(state.currentCategory === ALL_KEY) return remainingItemsFlat();
+  const cat = currentCatObj();
+  return cat ? cat.items : [];
+}
+// Every undone item across every section in the current list, tagged with
+// which section it actually lives in so it can be found again for
+// checking/editing/deleting.
+function remainingItemsFlat(){
+  const cats = currentCats();
+  const out = [];
+  for(const [name, cat] of Object.entries(cats)){
+    for(const it of cat.items){
+      if(!it.done) out.push({ id: it.id, text: it.text, done: it.done, __cat: name, __color: cat.color });
+    }
+  }
+  return out;
+}
+// Looks up the real (mutable) item + its owning array, given the section
+// name and item id recorded on its rendered row — works the same whether
+// the row was rendered from a normal section or the aggregated Remaining view.
+function findItemAndArray(catName, id){
+  const cat = currentCats()[catName];
+  if(!cat) return null;
+  const idx = cat.items.findIndex(i => i.id === id);
+  if(idx === -1) return null;
+  return { cat, idx };
+}
 
 function renderHeader(){
   const list = currentListObj();
@@ -730,37 +782,89 @@ function renderComposition(){
 
 function renderTabs(){
   const cats = currentCats();
-  tabsEl.innerHTML = Object.entries(cats).map(([name, cat]) => {
+  let totalRemaining = 0;
+  for(const cat of Object.values(cats)) totalRemaining += cat.items.filter(i=>!i.done).length;
+
+  const allActive = state.currentCategory === ALL_KEY;
+  const allStyle = allActive
+    ? `background:#171A21;color:#fff;border-color:#171A21;`
+    : `background:${hexToRgba('#171A21',0.06)};color:var(--text-dim);border-color:${hexToRgba('#171A21',0.14)};`;
+  const allTab = `<button class="tab" style="${allStyle}" data-tab="${ALL_KEY}">☑ Remaining<span class="n">${totalRemaining}</span></button>`;
+
+  const catTabs = Object.entries(cats).map(([name, cat]) => {
     const active = name === state.currentCategory;
+    const remaining = cat.items.filter(i=>!i.done).length;
     const style = active
       ? `background:${cat.color};color:#fff;border-color:${cat.color};`
       : `background:${hexToRgba(cat.color,0.1)};color:${cat.color};border-color:${hexToRgba(cat.color,0.25)};`;
-    return `<button class="tab" style="${style}" data-tab="${name}" title="Double-click to remove section">${name}<span class="n">${cat.items.length}</span></button>`;
-  }).join('') + `<button class="tab add" data-addcat="1">+ Section</button>`;
+    return `<button class="tab" style="${style}" data-tab="${escapeHtml(name)}">${escapeHtml(name)}<span class="n">${remaining}/${cat.items.length}</span></button>`;
+  }).join('');
+
+  tabButtonsEl.innerHTML = allTab + catTabs;
+}
+
+function renderSectionPanel(){
+  const cats = currentCats();
+  const names = Object.keys(cats);
+  sectionPanel.innerHTML = names.map(name => {
+    const cat = cats[name];
+    return `
+    <div class="list-row">
+      <span class="dot" style="background:${cat.color}"></span>
+      <span class="name" data-rename="${escapeHtml(name)}" style="cursor:text;">${escapeHtml(name)}</span>
+      <span class="count">${cat.items.length}</span>
+      ${names.length>1 ? `<button class="del" data-delsec="${escapeHtml(name)}" title="Delete section">✕</button>` : ''}
+    </div>`;
+  }).join('') + `
+    <div class="panel-actions">
+      <button data-addsec="1">+ Add section</button>
+    </div>
+  `;
 }
 
 function renderItems(){
-  const cat = currentCatObj();
-  const items = cat ? cat.items : [];
-  const color = cat ? cat.color : '#999';
+  const isAll = state.currentCategory === ALL_KEY;
+  const cat = isAll ? null : currentCatObj();
+  const color = isAll ? '#171A21' : (cat ? cat.color : '#999');
+  const rawItems = currentItems();
+
+  // Ticked items sink to the bottom; otherwise keep original order (stable sort).
+  const items = rawItems
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => (a.it.done===b.it.done ? a.i-b.i : (a.it.done ? 1 : -1)))
+    .map(x => x.it);
 
   if(!items.length){
-    itemsEl.innerHTML = `<div class="empty">Nothing here yet — add your first item below.</div>`;
+    itemsEl.innerHTML = `<div class="empty">${isAll ? 'Nothing left to pack — everything is ticked off!' : 'Nothing here yet — add your first item below.'}</div>`;
   } else {
-    itemsEl.innerHTML = items.map(it => `
-      <div class="item ${it.done?'done':''}" data-id="${it.id}">
-        <span class="accent" style="background:${color}"></span>
-        <button class="check ${it.done?'done':''}" data-check="${it.id}" style="${it.done?`background:${color};border-color:${color};`:''}"></button>
-        <div class="item-text" data-edit="${it.id}">${escapeHtml(it.text)}</div>
+    itemsEl.innerHTML = items.map(it => {
+      const rowColor = isAll ? it.__color : color;
+      const catName = isAll ? it.__cat : state.currentCategory;
+      const tag = isAll ? `<span class="item-cat-tag" style="background:${hexToRgba(rowColor,0.15)};color:${rowColor}">${escapeHtml(it.__cat)}</span>` : '';
+      return `
+      <div class="item ${it.done?'done':''}" data-id="${it.id}" data-cat="${escapeHtml(catName)}">
+        <span class="accent" style="background:${rowColor}"></span>
+        <button class="check ${it.done?'done':''}" data-check="${it.id}" style="${it.done?`background:${rowColor};border-color:${rowColor};`:''}"></button>
+        <div class="item-text" data-edit="${it.id}">${tag}${escapeHtml(it.text)}</div>
         <button class="del-btn" data-del="${it.id}">✕</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
   addPlus.style.color = color;
+  addRow.style.display = isAll ? 'none' : 'flex';
 
-  const done = items.filter(i=>i.done).length;
-  progressLabel.textContent = `${done} / ${items.length}`;
-  progressFill.style.width = items.length ? (done/items.length*100)+'%' : '0%';
+  let done, total;
+  if(isAll){
+    const cats = currentCats();
+    total = 0; done = 0;
+    for(const c of Object.values(cats)){ total += c.items.length; done += c.items.filter(i=>i.done).length; }
+  } else {
+    total = items.length;
+    done = items.filter(i=>i.done).length;
+  }
+  progressLabel.textContent = `${done} / ${total}`;
+  progressFill.style.width = total ? (done/total*100)+'%' : '0%';
   progressFill.style.background = color;
 }
 
@@ -768,13 +872,17 @@ function escapeHtml(s){
   return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-function renderAll(){ renderHeader(); renderComposition(); renderTabs(); renderItems(); }
+function renderAll(){ renderHeader(); renderComposition(); renderTabs(); renderSectionPanel(); renderItems(); }
 
 resetBtn.addEventListener('click', resetTicks);
 
 listTrigger.addEventListener('click', () => listPanel.classList.toggle('open'));
+sectionTrigger.addEventListener('click', () => sectionPanel.classList.toggle('open'));
 document.addEventListener('click', (e) => {
-  if(!e.target.closest('.list-picker')) listPanel.classList.remove('open');
+  if(!e.target.closest('.list-picker')){
+    listPanel.classList.remove('open');
+    sectionPanel.classList.remove('open');
+  }
 });
 
 listPanel.addEventListener('click', (e) => {
@@ -837,20 +945,7 @@ compositionEl.addEventListener('click', (e) => {
   if(seg){ state.currentCategory = seg.dataset.tab; renderAll(); persist(); }
 });
 
-tabsEl.addEventListener('click', (e) => {
-  const add = e.target.closest('[data-addcat]');
-  if(add){
-    const name = prompt('Name for the new section:');
-    if(!name) return;
-    const cats = currentCats();
-    if(cats[name]) { alert('That section already exists.'); return; }
-    const color = CAT_COLORS[Object.keys(cats).length % CAT_COLORS.length];
-    cats[name] = mkCat([], color);
-    state.currentCategory = name;
-    renderAll();
-    persist();
-    return;
-  }
+tabButtonsEl.addEventListener('click', (e) => {
   const tab = e.target.closest('[data-tab]');
   if(tab){
     state.currentCategory = tab.dataset.tab;
@@ -858,59 +953,102 @@ tabsEl.addEventListener('click', (e) => {
     persist();
   }
 });
-tabsEl.addEventListener('dblclick', (e) => {
-  const tab = e.target.closest('[data-tab]');
-  if(!tab) return;
-  const cats = currentCats();
-  if(Object.keys(cats).length <= 1) { alert('A list needs at least one section.'); return; }
-  if(confirm(`Remove section "${tab.dataset.tab}" and its items?`)){
-    delete cats[tab.dataset.tab];
-    state.currentCategory = Object.keys(cats)[0];
+
+sectionPanel.addEventListener('click', (e) => {
+  const del = e.target.closest('[data-delsec]');
+  if(del){
+    e.stopPropagation();
+    const name = del.dataset.delsec;
+    const cats = currentCats();
+    if(Object.keys(cats).length <= 1){ alert('A list needs at least one section.'); return; }
+    if(confirm(`Remove section "${name}" and its ${cats[name].items.length} item(s)? This can't be undone.`)){
+      delete cats[name];
+      if(state.currentCategory === name){
+        state.currentCategory = Object.keys(currentCats())[0] || ALL_KEY;
+      }
+      renderAll();
+      persist();
+    }
+    return;
+  }
+  const add = e.target.closest('[data-addsec]');
+  if(add){
+    const name = prompt('Name for the new section:');
+    if(!name) return;
+    const cats = currentCats();
+    if(cats[name]){ alert('That section already exists.'); return; }
+    const color = CAT_COLORS[Object.keys(cats).length % CAT_COLORS.length];
+    cats[name] = mkCat([], color);
+    state.currentCategory = name;
     renderAll();
     persist();
+    return;
+  }
+  const rename = e.target.closest('[data-rename]');
+  if(rename && !rename.querySelector('input')){
+    const oldName = rename.dataset.rename;
+    const cats = currentCats();
+    const cat = cats[oldName];
+    rename.innerHTML = `<input value="${escapeHtml(oldName)}" />`;
+    const input = rename.querySelector('input');
+    input.focus();
+    input.select();
+    const save = () => {
+      const val = input.value.trim();
+      if(val && val !== oldName){
+        if(cats[val]){ alert('That section name is already used.'); renderSectionPanel(); return; }
+        // Rebuild the map to preserve section order with the renamed key.
+        const rebuilt = {};
+        for(const [n, c] of Object.entries(cats)) rebuilt[n === oldName ? val : n] = c;
+        currentListObj().categories = rebuilt;
+        if(state.currentCategory === oldName) state.currentCategory = val;
+        renderAll();
+        persist();
+      } else {
+        renderSectionPanel();
+      }
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', (ev) => {
+      if(ev.key==='Enter') input.blur();
+      if(ev.key==='Escape'){ input.removeEventListener('blur', save); renderSectionPanel(); }
+    });
   }
 });
 
 itemsEl.addEventListener('click', (e) => {
   const chk = e.target.closest('[data-check]');
   if(chk){
-    const it = currentItems().find(i => i.id === chk.dataset.check);
-    it.done = !it.done;
-    renderHeader();
-    renderComposition();
-    renderItems();
+    const row = chk.closest('.item');
+    const found = findItemAndArray(row.dataset.cat, chk.dataset.check);
+    if(found) found.cat.items[found.idx].done = !found.cat.items[found.idx].done;
+    renderAll();
     persist();
     return;
   }
   const del = e.target.closest('[data-del]');
   if(del){
-    const arr = currentItems();
-    const idx = arr.findIndex(i => i.id === del.dataset.del);
-    arr.splice(idx,1);
-    renderHeader();
-    renderComposition();
-    renderTabs();
-    renderItems();
+    const row = del.closest('.item');
+    const found = findItemAndArray(row.dataset.cat, del.dataset.del);
+    if(found) found.cat.items.splice(found.idx, 1);
+    renderAll();
     persist();
     return;
   }
   const edit = e.target.closest('[data-edit]');
   if(edit && !edit.querySelector('input')){
-    const it = currentItems().find(i => i.id === edit.dataset.edit);
+    const row = edit.closest('.item');
+    const found = findItemAndArray(row.dataset.cat, edit.dataset.edit);
+    if(!found) return;
+    const it = found.cat.items[found.idx];
     edit.innerHTML = `<input value="${escapeHtml(it.text)}" />`;
     const input = edit.querySelector('input');
     input.focus();
     input.select();
     const save = () => {
       const val = input.value.trim();
-      if(val) it.text = val; else {
-        const arr = currentItems();
-        arr.splice(arr.findIndex(i=>i.id===it.id),1);
-      }
-      renderHeader();
-      renderComposition();
-      renderTabs();
-      renderItems();
+      if(val) it.text = val; else found.cat.items.splice(found.idx, 1);
+      renderAll();
       persist();
     };
     input.addEventListener('blur', save);
@@ -923,14 +1061,12 @@ itemsEl.addEventListener('click', (e) => {
 
 addInput.addEventListener('keydown', (e) => {
   if(e.key === 'Enter'){
+    if(state.currentCategory === ALL_KEY) return;
     const val = addInput.value.trim();
     if(!val) return;
-    currentItems().push({ id: nextId(), text: val, done: false });
+    currentCatObj().items.push({ id: nextId(), text: val, done: false });
     addInput.value = '';
-    renderHeader();
-    renderComposition();
-    renderTabs();
-    renderItems();
+    renderAll();
     persist();
   }
 });
